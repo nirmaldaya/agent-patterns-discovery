@@ -10,6 +10,7 @@ and processes) explorable in Databricks, and lets anyone query it in plain langu
 | 3 | Build a Unity Catalog catalog with curated tables | [`sql/00_setup.sql`](sql/00_setup.sql), [`sql/10_explore_tables.sql`](sql/10_explore_tables.sql), [`notebooks/03_build_labels_and_catalog.py`](notebooks/03_build_labels_and_catalog.py), [`notebooks/04_apply_genie_metadata.py`](notebooks/04_apply_genie_metadata.py) |
 | 4 | Attach Genie and ask questions | [`genie/genie_space_setup.md`](genie/genie_space_setup.md), [`genie/sample_queries.sql`](genie/sample_queries.sql) |
 | 5 | Knowledge graph and graph analytics (for the graph UI) | [`docs/02_graph_model.md`](docs/02_graph_model.md), [`notebooks/05_build_graph.py`](notebooks/05_build_graph.py), [`notebooks/06_graph_analytics.py`](notebooks/06_graph_analytics.py) |
+| 6 | Interactive graph explorer (FastAPI + React, deployed as a Databricks App) | [`apps/graph-explorer`](apps/graph-explorer/README.md) |
 
 ## What you get
 

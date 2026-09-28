@@ -1,0 +1,15 @@
+# Databricks Apps configuration.
+# On deploy, Databricks installs requirements.txt, runs `npm install` and `npm run build` (package.json is
+# present, which builds the React UI into dist/), then runs this command.
+command: ["python", "-m", "backend.server"]
+
+env:
+  # Resource key of the SQL warehouse added to the app (Configure > App resources > SQL warehouse, key "sql-warehouse").
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: APDI_CATALOG
+    value: apdi
+  - name: APDI_SCHEMA
+    value: explore
+  - name: APDI_MAX_NODES
+    value: "300"
