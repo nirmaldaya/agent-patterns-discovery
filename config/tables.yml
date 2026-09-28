@@ -1,0 +1,247 @@
+# APDI quick solution - PostgreSQL tables to ingest into Unity Catalog.
+#
+# Target:  <catalog>.raw_<source_schema>.<table>   e.g. apdi.raw_core.agents
+#
+# Keys per table
+#   source     schema.table in PostgreSQL (required)
+#   group      documentation only - see docs/01_table_inventory.md
+#   mode       full (default)  -> reload every run, replaces only this deployment's rows
+#              incremental     -> append rows whose `watermark` is greater than what is already loaded
+#   watermark  column used by incremental mode (monotonic id or insert timestamp)
+#   include    ingest ONLY these columns (use for tables that also hold PII)
+#   exclude    never ingest these columns (credentials, PII, raw payloads, images)
+#   redact     JSON / code text columns; values of keys that look like secrets are masked
+#
+# Global rules applied by notebooks/01_ingest_postgres.py regardless of this file
+#   * bytea (binary) columns are always dropped
+#   * enum / interval / inet / json / jsonb / uuid columns are cast to text in the pushdown query
+#   * _deployment_id, _source_table and _ingested_at are appended to every row
+
+defaults:
+  mode: full
+
+tables:
+
+  # ---------------------------------------------------------------------------
+  # A. Artifact definitions - what customers BUILT
+  # ---------------------------------------------------------------------------
+  - source: core.agents
+    group: artifact_definition
+    exclude: [agent_image]
+    redact: [agent_config]
+  - source: core.agent_categories
+    group: artifact_definition
+  - source: core.agents_tools
+    group: artifact_composition
+  - source: core.agents_knowledge_bases
+    group: artifact_composition
+  - source: core.agent_guardrails
+    group: artifact_composition
+  - source: core.agents_user_hierarchy
+    group: artifact_composition
+
+  - source: core.tools
+    group: artifact_definition
+    redact: [tool_config]
+  - source: core.tools_parameters
+    group: artifact_definition
+  - source: core.tools_builtin
+    group: artifact_definition
+  - source: core.tool_user_hierarchy
+    group: artifact_composition
+
+  - source: core.workflows
+    group: artifact_definition
+    redact: [workflow_config]
+  - source: core.workflow_agents
+    group: artifact_composition
+  - source: core.workflows_user_hierarchy
+    group: artifact_composition
+
+  - source: core.knowledgebase_collection_mst
+    group: artifact_definition
+  - source: core.knowledgebase_collection_transaction
+    group: artifact_definition
+    exclude: [uploaded_by, file_path]
+    redact: [file_metadata]
+  - source: core.knowledgebase_user_hierarchy
+    group: artifact_composition
+
+  - source: core.guardrail_mst
+    group: artifact_definition
+  - source: core.guardrail_user_hierarchy
+    group: artifact_composition
+
+  - source: core.model
+    group: artifact_definition
+  - source: core.models
+    group: artifact_definition
+  - source: core.model_providers
+    group: artifact_definition
+    exclude: [vault_path]
+    redact: [config]
+
+  - source: core.code_conversion_usecases
+    group: artifact_definition
+
+  - source: mcp.servers
+    group: artifact_definition
+    exclude: [authentication_config]
+    redact: [server_config, metadata]
+  - source: mcp.tools
+    group: artifact_definition
+    redact: [metadata]
+  - source: mcp.deployments
+    group: artifact_definition
+  - source: mcp.onboarding_workflows
+    group: artifact_definition
+    redact: [server_config, metadata]
+
+  - source: process_studio.process_definition
+    group: artifact_definition
+    redact: [process_definition_json, designer_metadata_json]
+  - source: process_studio.process_definition_artifact_link
+    group: artifact_composition
+
+  # ---------------------------------------------------------------------------
+  # B. Evolution - how designs changed (versions, clones, justifications)
+  # ---------------------------------------------------------------------------
+  - source: core.agents_approved_history
+    group: artifact_history
+    redact: [agent_config, tools_snapshot, kb_snapshot]
+  - source: core.tools_approved_history
+    group: artifact_history
+    redact: [tool_config]
+  - source: core.workflows_approved_history
+    group: artifact_history
+    redact: [workflow_config, agents_snapshot]
+  - source: core.agent_justification_audit
+    group: artifact_history
+    exclude: [created_by_email]
+
+  # ---------------------------------------------------------------------------
+  # C. Organisation & context - WHO built it and WHERE
+  # ---------------------------------------------------------------------------
+  - source: rbac.organization
+    group: org_context
+    exclude: [image]
+  - source: rbac.domain
+    group: org_context
+    exclude: [image]
+  - source: rbac.project
+    group: org_context
+    exclude: [image]
+  - source: rbac.team
+    group: org_context
+    exclude: [image]
+  - source: rbac.realm
+    group: org_context
+  - source: rbac.practice_area
+    group: org_context
+  - source: rbac.tags
+    group: org_context
+  - source: rbac.hierarchy_label_configuration
+    group: org_context
+  - source: rbac.user_role_hierarchy
+    group: org_context
+  - source: rbac.users
+    group: org_context
+    include: [user_id, team_id, job_title, department, location, timezone,
+              is_active, created_at, last_logged_in, last_realm_id]
+  - source: rbac.integration_providers
+    group: org_context
+    exclude: [client_id, client_secret, authorize_url, token_url, callback_url]
+    redact: [meta, field_schema]
+  - source: rbac.integration_provider_tools
+    group: org_context
+    redact: [config, meta]
+  - source: rbac.integrations
+    group: org_context
+    include: [id, user_id, provider, auth_type, connected_at, last_synced_at, created_at]
+  - source: core.tenants
+    group: org_context
+    exclude: [webhook_url]
+  - source: core.customer_license_mst
+    group: org_context
+    include: [id, customer_name, start_date, end_date, issue_date]
+
+  # ---------------------------------------------------------------------------
+  # D. Usage & behaviour - what customers actually RUN
+  # ---------------------------------------------------------------------------
+  - source: core.artifact_executions
+    group: usage
+  - source: core.artifact_events
+    group: usage
+  - source: core.agent_execution_job
+    group: usage
+    exclude: [user_signature]
+  - source: core.workflow_execution_job
+    group: usage
+    exclude: [user_signature]
+  - source: core.agent_steps
+    group: usage
+    mode: incremental
+    watermark: id
+  - source: core.user_activity
+    group: usage
+    exclude: [ip_address, user_agent]
+    mode: incremental
+    watermark: id
+  - source: core.feature_usage
+    group: usage
+  - source: core.ai_gateway_audit_log
+    group: usage
+    mode: incremental
+    watermark: occurred_at
+    exclude: [prompt_text, response_text, user_login, user_name, user_email]
+  - source: mcp.tool_execution_audit
+    group: usage
+    mode: incremental
+    watermark: id
+    exclude: [request_payload, response_payload, user_email, credential_used, user_agent]
+  - source: mcp.tool_usage_stats
+    group: usage
+    mode: incremental
+    watermark: id
+    exclude: [parameters]
+  - source: process_studio.process_execution
+    group: usage
+    exclude: [start_user_inputs_json]
+  - source: process_studio.node_execution_projection
+    group: usage
+  - source: process_studio.human_task
+    group: usage
+
+  # ---------------------------------------------------------------------------
+  # E. Quality, sentiment & demand signals
+  # ---------------------------------------------------------------------------
+  - source: core.agent_user_ratings
+    group: quality
+  - source: core.tool_user_ratings
+    group: quality
+  - source: core.workflow_user_ratings
+    group: quality
+  - source: core.agent_favourites
+    group: quality
+  - source: core.tool_favourites
+    group: quality
+  - source: core.workflow_favourites
+    group: quality
+  - source: core.user_feedback
+    group: quality
+  - source: core.search_events
+    group: demand
+    exclude: [client_ip, user_agent]
+    mode: incremental
+    watermark: id
+  - source: trulens.trulens_apps
+    group: quality
+    redact: [app_json]
+  - source: trulens.trulens_feedback_defs
+    group: quality
+  - source: trulens.trulens_feedbacks
+    group: quality
+    exclude: [calls_json]
+  - source: trulens.trulens_records
+    group: quality
+    exclude: [input, output, record_json]

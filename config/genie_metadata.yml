@@ -1,0 +1,269 @@
+# Unity Catalog comments and informational keys for the explore schema.
+# Applied by notebooks/04_apply_genie_metadata.py after every rebuild.
+# Genie reads these descriptions, so write them for a business user, not an engineer.
+
+schema: explore
+
+# Applied to every table that has the column, unless the table overrides it below.
+common_columns:
+  _deployment_id: Platform deployment (customer instance) the row came from. Always join on it together with the id columns.
+  organization_name: Organisation (top of the customer's org hierarchy) that owns the artifact
+  domain_name: Org-hierarchy domain (business unit or department) that owns the artifact. This is an org unit, not an industry
+  project_name: Project within the domain that owns the artifact
+  team_name: Team that owns the artifact
+  realm_name: Realm (workspace) the artifact was created in
+  practice_area: Practice area the artifact was filed under by its author
+  industry_manual: Industry assigned by an APDI steward in ref.industry_mapping. NULL when not mapped. See artifact_catalog.industries for the resolved value
+  tags: Free-text tags entered by the author (comma separated)
+  status: Lifecycle status. APPROVED means published. Others are DRAFTED, PENDING, IN_REVIEW, REJECTED, ARCHIVED, CREATED
+  is_golden: True when the platform team marked it as a golden (reference-quality) asset
+  run_count: Number of recorded runs (from execution records)
+  run_count_30d: Number of recorded runs in the last 30 days
+  distinct_runner_count: Number of different users who ran it
+  avg_user_rating: Average star rating (1 to 5) from users
+  platform_execution_counter: Execution counter stored by the platform on the artifact. Prefer run_count for analysis
+  created_at: When it was created
+
+tables:
+
+  artifact_catalog:
+    comment: >
+      START HERE. One row per artifact customers built on the platform: agents, workflows, tools, MCP servers,
+      MCP tools, knowledge bases, guardrails and processes. Holds org context, usage and inferred labels
+      (industry, SDLC phase, tech stack, business function, archetype) as arrays. Use array_contains to filter,
+      e.g. array_contains(sdlc_phases, 'Testing').
+    primary_key: [_deployment_id, artifact_type, artifact_id]
+    columns:
+      artifact_type: AGENT, WORKFLOW, TOOL, MCP_SERVER, MCP_TOOL, KNOWLEDGE_BASE, GUARDRAIL or PROCESS
+      artifact_id: Id of the artifact within its type. Joins to agents.agent_id, workflows.workflow_id, tools.tool_id and so on
+      artifact_name: Name of the artifact
+      description: What the artifact does, in the author's words
+      industries: Resolved industry list. The steward's manual mapping if present, otherwise industries inferred from keywords. Empty means horizontal or unclassified
+      industry_source: MANUAL, INFERRED_KEYWORD or UNCLASSIFIED
+      industries_inferred: Industries inferred from keywords in the artifact text, even when a manual mapping overrides them
+      sdlc_phases: Software lifecycle phases supported, e.g. Requirements, Design & Architecture, Development, Code Review & Quality, Testing, Build & Deploy (CI/CD), Operations & Support, Documentation, Project & Delivery Management
+      tech_stack: Technologies mentioned or connected, e.g. Azure, AWS, Jira, Azure DevOps, ServiceNow, SAP, Java, COBOL / Mainframe, Databricks
+      tech_categories: Categories of the tech stack, e.g. Cloud, ALM & DevOps, Enterprise Apps, Data, Language, AI
+      business_functions: Business function served, e.g. Customer Service, Human Resources, Finance & Accounting, Software Engineering & IT
+      archetypes: Kind of task performed, e.g. Summarizer, Extractor, Generator, Reviewer / Validator, Converter / Translator
+      related_names: Connected components. Tools and knowledge bases for an agent, agents in order for a workflow, agents using a tool or knowledge base, tools of an MCP server
+      related_count: Number of related_names
+      run_count: Recorded runs. For MCP servers and MCP tools this is the number of tool calls
+      created_by_user_id: User id of the author
+
+  artifact_labels:
+    comment: >
+      Long form of the labels in artifact_catalog, one row per artifact, dimension and label, with the keyword that
+      triggered it. Use to count artifacts per label or to explain why an artifact got a label.
+    foreign_keys:
+      - columns: [_deployment_id, artifact_type, artifact_id]
+        references: {table: artifact_catalog, columns: [_deployment_id, artifact_type, artifact_id]}
+    columns:
+      dimension: SDLC_PHASE, TECH_STACK, INDUSTRY, BUSINESS_FUNCTION or AGENT_ARCHETYPE
+      label: Label within the dimension
+      category: Sub-category, used for TECH_STACK (Cloud, ALM & DevOps, Data, ...)
+      matched_keyword: Text in the artifact that triggered the label
+      source: KEYWORD (inferred) or MANUAL (steward mapping, INDUSTRY only)
+
+  agents:
+    comment: >
+      One row per agent (crewAI agent) with its role, goal and description, the model it uses, its tools,
+      knowledge bases, guardrails and the workflows it appears in, plus usage and ratings.
+    primary_key: [_deployment_id, agent_id]
+    columns:
+      agent_name: Agent name
+      role: The agent's role (crewAI role)
+      goal: The agent's goal (crewAI goal)
+      description: Description of what the agent does
+      expected_output: Output the agent is expected to produce
+      backstory: The agent's backstory or persona (crewAI backstory)
+      agent_type: USER for customer-built agents, SYSTEM for platform-provided agents. Default to USER when asked about what customers built
+      cloned_from_agent_id: Agent this one was copied from, if any
+      agent_category: Category chosen by the author
+      model_name: LLM the agent is configured to use
+      model_provider: Provider or engine of that LLM
+      tool_names: Names of the tools attached to the agent
+      knowledge_base_names: Knowledge bases (RAG collections) attached to the agent
+      guardrail_names: Guardrails attached to the agent
+      workflow_names: Workflows the agent is part of
+      job_count: Queued execution jobs for the agent
+      job_failed_count: Execution jobs that ended FAILED
+      creator_department: Department of the author
+      creator_job_title: Job title of the author
+
+  workflows:
+    comment: >
+      One row per workflow (a crew / pipeline of agents run in sequence) with the ordered agent chain,
+      the tools and knowledge bases used across its agents, usage and ratings.
+    primary_key: [_deployment_id, workflow_id]
+    columns:
+      workflow_name: Workflow name
+      description: Description of what the workflow does
+      agent_count: Number of agents in the workflow
+      agent_chain: Agents in execution order, joined with ' -> '
+      agent_roles: Roles of the agents in the workflow
+      tool_names: All tools used by any agent in the workflow. Use array_contains to find workflows using a tool
+      knowledge_base_names: All knowledge bases used by any agent in the workflow
+      workflow_shape: SINGLE_AGENT (1 agent), SHORT_CHAIN (2 to 3) or LONG_CHAIN (4 or more)
+      cloned_from_workflow_id: Workflow this one was copied from, if any
+
+  tools:
+    comment: One row per platform tool (core tools that agents call) with type, parameters and which agents use it.
+    primary_key: [_deployment_id, tool_id]
+    columns:
+      tool_description: Description of what the tool does
+      tool_type: Tool type set by the platform
+      action_type: WRITE if the tool name suggests it changes an external system (create, update, send ...), READ if it only reads, otherwise OTHER
+      is_builtin: True for tools shipped with the platform
+      parameter_names: Input parameters of the tool
+      agent_count: Number of agents that use the tool
+      agent_names: Agents that use the tool
+
+  knowledge_bases:
+    comment: One row per knowledge base (RAG document collection) with vector store, files and the agents using it.
+    primary_key: [_deployment_id, knowledge_base_id]
+    columns:
+      kb_type: Knowledge base type
+      vector_db: Vector database used
+      file_count: Active files in the collection
+      file_types: File extensions in the collection (pdf, docx, ...)
+      agent_count: Agents using the knowledge base
+
+  guardrails:
+    comment: One row per guardrail (safety or policy rule) and the agents it is attached to.
+    primary_key: [_deployment_id, guardrail_id]
+    columns:
+      agent_count: Agents the guardrail is attached to
+
+  mcp_servers:
+    comment: One row per MCP (Model Context Protocol) server onboarded to the platform, with its tools and call volume.
+    primary_key: [_deployment_id, server_id]
+    columns:
+      _deployment_id: Platform deployment (customer instance) the row came from
+      category: Category of the MCP server
+      tool_names: Tools the server exposes
+      call_count: Tool calls made through this server
+      success_rate_pct: Percentage of successful tool calls
+      distinct_agent_count: Different agents that called this server
+
+  mcp_tools:
+    comment: One row per tool exposed by an MCP server, with call volume and success rate.
+    primary_key: [_deployment_id, mcp_tool_id]
+    foreign_keys:
+      - columns: [_deployment_id, server_id]
+        references: {table: mcp_servers, columns: [_deployment_id, server_id]}
+    columns:
+      _deployment_id: Platform deployment (customer instance) the row came from
+      action_type: WRITE if the tool changes an external system, READ if it only reads, otherwise OTHER
+      call_count: Number of calls
+      success_rate_pct: Percentage of successful calls
+
+  processes:
+    comment: >
+      One row per Process Studio process definition version (business processes that orchestrate agents,
+      workflows, tools and human approval steps). Filter is_latest_version = true unless versions are asked for.
+    primary_key: [_deployment_id, process_id]
+    columns:
+      _deployment_id: Platform deployment (customer instance) the row came from
+      is_latest_version: True for the latest version of each process
+      has_human_in_the_loop: True when the process has created human tasks (approvals, reviews)
+      linked_artifact_names: Agents, workflows and tools placed in the process
+
+  process_nodes:
+    comment: Agents, workflows and tools placed as nodes in a Process Studio process.
+    foreign_keys:
+      - columns: [_deployment_id, process_id]
+        references: {table: processes, columns: [_deployment_id, process_id]}
+
+  workflow_agents:
+    comment: Bridge between workflows and agents with the position of each agent in the workflow (step_order).
+    foreign_keys:
+      - columns: [_deployment_id, workflow_id]
+        references: {table: workflows, columns: [_deployment_id, workflow_id]}
+      - columns: [_deployment_id, agent_id]
+        references: {table: agents, columns: [_deployment_id, agent_id]}
+
+  agent_tools:
+    comment: Bridge between agents and the platform tools attached to them.
+    foreign_keys:
+      - columns: [_deployment_id, agent_id]
+        references: {table: agents, columns: [_deployment_id, agent_id]}
+      - columns: [_deployment_id, tool_id]
+        references: {table: tools, columns: [_deployment_id, tool_id]}
+
+  agent_knowledge_bases:
+    comment: Bridge between agents and the knowledge bases attached to them.
+    foreign_keys:
+      - columns: [_deployment_id, agent_id]
+        references: {table: agents, columns: [_deployment_id, agent_id]}
+      - columns: [_deployment_id, knowledge_base_id]
+        references: {table: knowledge_bases, columns: [_deployment_id, knowledge_base_id]}
+
+  agent_guardrails:
+    comment: Bridge between agents and the guardrails attached to them.
+    foreign_keys:
+      - columns: [_deployment_id, agent_id]
+        references: {table: agents, columns: [_deployment_id, agent_id]}
+      - columns: [_deployment_id, guardrail_id]
+        references: {table: guardrails, columns: [_deployment_id, guardrail_id]}
+
+  executions:
+    comment: One row per run of an agent, workflow or tool, with duration, tokens, cost and the user's rating or comment.
+    columns:
+      artifact_type: AGENT, WORKFLOW or TOOL
+      artifact_id: Id of the agent, workflow or tool that ran
+      job_status: Final status of the execution job when known (SUCCESS, FAILED, ...)
+      duration_seconds: Run time in seconds
+      issue_tags: Issue tags the user attached to the run
+      user_comment: Free-text comment the user left on the run
+
+  llm_usage_daily:
+    comment: LLM calls through the AI gateway per day, agent or workflow, and model, with tokens, cost, latency and guardrail outcomes.
+    columns:
+      agent_id: Agent id as text. Cast to INT to join with agents.agent_id
+      workflow_id: Workflow (pipeline) id as text. Cast to INT to join with workflows.workflow_id
+      caller_type: AGENT, PIPELINE, RAG, KB, GUARDRAIL, DIRECT_API or SYSTEM
+      cost_usd: LLM cost in US dollars
+      guardrail_blocked_count: Calls blocked by guardrails
+      pii_detected_count: Calls where personal data was detected
+
+  mcp_tool_usage_daily:
+    comment: MCP tool calls per day, tool, agent and workflow, with success, failures and security violations.
+    foreign_keys:
+      - columns: [_deployment_id, mcp_tool_id]
+        references: {table: mcp_tools, columns: [_deployment_id, mcp_tool_id]}
+
+  search_queries:
+    comment: >
+      What users searched for in the platform marketplace. Queries with is_zero_result = true show demand
+      for agents or tools that do not exist yet.
+    primary_key: [_deployment_id, search_id]
+    columns:
+      query_normalized: Lower-cased, trimmed search text. Group by this to find popular searches
+      is_zero_result: True when the search returned nothing
+      entity_type: What was searched (agents, workflows, tools ...)
+
+  user_feedback:
+    comment: Feedback users submitted (bugs, feature requests, complaints, praise) with sentiment and the artifact it refers to.
+    primary_key: [_deployment_id, feedback_id]
+    columns:
+      feedback_type: bug, feature_request, complaint, praise, suggestion or question
+      sentiment_score: Sentiment from -1 (negative) to 1 (positive)
+      context_name: Name of the agent, workflow or tool the feedback is about
+
+  quality_scores:
+    comment: LLM evaluation scores from TruLens (for example groundedness, answer relevance, context relevance) per evaluated record.
+    primary_key: [_deployment_id, feedback_result_id]
+    columns:
+      app_name: Evaluated application (usually an agent or workflow name)
+      metric_name: Evaluation metric
+      score: Metric score, usually 0 to 1 where higher is better
+
+  integrations:
+    comment: Third-party systems (Jira, Azure DevOps, GitHub, ServiceNow ...) available as integrations, how many users connected them and which tools use them.
+    primary_key: [_deployment_id, provider_id]
+
+  org_hierarchy:
+    comment: >
+      Organisation hierarchy per realm (organization > domain > project > team) with the steward's industry mapping.
+      One extra row per deployment with realm_id NULL holds the deployment-wide industry.

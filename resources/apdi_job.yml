@@ -1,0 +1,66 @@
+resources:
+  jobs:
+    apdi_refresh:
+      name: apdi-refresh
+      description: Ingest platform PostgreSQL data into Unity Catalog and rebuild the APDI explore tables used by Genie.
+      max_concurrent_runs: 1
+      schedule:
+        # Daily at 02:00 UTC. Development-mode deployments are created paused.
+        quartz_cron_expression: "0 0 2 * * ?"
+        timezone_id: UTC
+      job_clusters:
+        - job_cluster_key: apdi
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 1
+            data_security_mode: SINGLE_USER
+      tasks:
+        - task_key: setup
+          job_cluster_key: apdi
+          notebook_task:
+            notebook_path: ../notebooks/run_sql_file.py
+            base_parameters:
+              catalog: ${var.catalog}
+              sql_file: ../sql/00_setup.sql
+              create_catalog: "false"
+
+        - task_key: ingest
+          depends_on:
+            - task_key: setup
+          job_cluster_key: apdi
+          notebook_task:
+            notebook_path: ../notebooks/01_ingest_postgres.py
+            base_parameters:
+              catalog: ${var.catalog}
+              deployment_id: ${var.deployment_id}
+              secret_scope: ${var.secret_scope}
+
+        - task_key: build_explore
+          depends_on:
+            - task_key: ingest
+          job_cluster_key: apdi
+          notebook_task:
+            notebook_path: ../notebooks/run_sql_file.py
+            base_parameters:
+              catalog: ${var.catalog}
+              sql_file: ../sql/10_explore_tables.sql
+              drop_foreign_keys_in: explore
+
+        - task_key: labels_and_catalog
+          depends_on:
+            - task_key: build_explore
+          job_cluster_key: apdi
+          notebook_task:
+            notebook_path: ../notebooks/03_build_labels_and_catalog.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        - task_key: genie_metadata
+          depends_on:
+            - task_key: labels_and_catalog
+          job_cluster_key: apdi
+          notebook_task:
+            notebook_path: ../notebooks/04_apply_genie_metadata.py
+            base_parameters:
+              catalog: ${var.catalog}

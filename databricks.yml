@@ -1,0 +1,37 @@
+# Databricks Asset Bundle for the APDI quick solution.
+#
+#   databricks bundle validate
+#   databricks bundle deploy            # uploads notebooks, sql and config, creates the job
+#   databricks bundle run apdi_refresh  # runs setup > ingest > explore > labels > metadata
+#
+# Authenticate first (databricks auth login --host https://<workspace-url>) or set DATABRICKS_HOST.
+
+bundle:
+  name: apdi
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds the APDI schemas
+    default: apdi
+  deployment_id:
+    description: Id of the platform deployment (customer instance) being ingested
+    default: dep_001
+  secret_scope:
+    description: Secret scope holding pg_host, pg_port, pg_database, pg_user, pg_password (and optional pg_sslmode)
+    default: apdi
+  spark_version:
+    description: Databricks Runtime for the job cluster (15.4 LTS or later)
+    default: 15.4.x-scala2.12
+  node_type_id:
+    description: Worker VM type, which depends on the cloud (Azure Standard_D4ds_v5, AWS m6i.xlarge, GCP n2-standard-4)
+    default: Standard_D4ds_v5
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production

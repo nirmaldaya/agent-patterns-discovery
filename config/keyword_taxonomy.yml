@@ -1,0 +1,181 @@
+# APDI quick solution - keyword taxonomy for first-pass classification.
+#
+# notebooks/03_build_labels_and_catalog.py matches these keywords against the text of every
+# agent, workflow, tool, MCP server/tool, knowledge base, guardrail and process, and writes
+# one row per (artifact, dimension, label) to explore.artifact_labels.
+#
+# Matching rules
+#   * case-insensitive
+#   * whole words only: "java" does not match "javascript"
+#   * a space in a keyword also matches "_", "-" or no separator: "test case" matches
+#     "test_case", "test-case" and "testcase"
+#   * a trailing * is a prefix wildcard: "summari*" matches summarise, summarize, summarization
+#   * patterns: optional raw Java regexes (applied to lower-cased text) for cases keywords cannot express
+#
+# This is deliberately simple and transparent. Expect false positives and misses, and treat
+# the output as a starting point that stewards refine. Phase 2 replaces or augments it with an
+# LLM classifier (ai_query) using the same dimensions and labels.
+#
+# Industry: a manual mapping in ref.industry_mapping always wins over the INDUSTRY labels here.
+
+dimensions:
+
+  SDLC_PHASE:
+    description: Software delivery lifecycle phase the artifact supports
+    labels:
+      - label: Requirements
+        keywords: [requirement*, user story, user stories, epic*, acceptance criteria, brd, frd,
+                   business requirement*, elicitation, backlog, feature request*, product requirement*, prd]
+      - label: Design & Architecture
+        keywords: [architecture, architect*, solution design, system design, design document*, hld, lld,
+                   high level design, low level design, data model*, erd, api design, wireframe*, sequence diagram*,
+                   uml]
+      - label: Development
+        keywords: [code generation, generate code, code generator, coding, developer*, programming,
+                   refactor*, boilerplate, scaffold*, code conversion, code migration,
+                   modernization, modernisation, legacy code, sql generation, text to sql, nl2sql]
+      - label: Code Review & Quality
+        keywords: [code review*, review code, pull request*, static analysis, code quality, code smell*,
+                   sonar*, lint*, secure code review, vulnerabilit*, sast]
+      - label: Testing
+        keywords: [test*, testing, test case*, test script*, test plan*, test data, test automation,
+                   unit test*, integration test*, regression test*, qa, quality assurance, defect*, bug*,
+                   selenium, playwright, cypress, junit, pytest, jmeter, performance test*, uat]
+      - label: Build & Deploy (CI/CD)
+        keywords: [ci cd, cicd, continuous integration, continuous delivery, continuous deployment,
+                   deploy*, release*, build pipeline*, jenkins, github actions, gitlab ci, azure pipelines,
+                   terraform, infrastructure as code, iac, helm, ansible, dockerfile]
+      - label: Operations & Support
+        keywords: [incident*, monitoring, observability, log analysis, logs, root cause, rca, alert*,
+                   ticket triage, triage, sre, on call, runbook*, outage, service desk, helpdesk, help desk,
+                   itsm, support ticket*, troubleshoot*]
+      - label: Documentation
+        keywords: [documentation, document generation, readme, technical writing, release notes,
+                   api doc*, user manual*, knowledge article*, confluence page*]
+      - label: Project & Delivery Management
+        keywords: [sprint*, scrum, agile, status report*, project plan*, estimation, estimate*, velocity,
+                   risk register, raid log, stand up, standup, retrospective*, delivery excellence]
+
+  TECH_STACK:
+    description: Technologies, platforms and products the artifact touches
+    labels:
+      # Cloud
+      - label: Azure
+        category: Cloud
+        keywords: [aks, adls, azure blob, cosmos db, cosmosdb, azure function*, azure openai, entra, azure ad]
+        # "azure" on its own, but not when it is part of "Azure DevOps", "Azure Boards" and so on
+        patterns: ['(?<![a-z0-9])azure(?![\s_\-]*(devops|boards|repos|pipelines|artifacts|test plans))(?![a-z0-9])']
+      - {label: AWS, category: Cloud, keywords: [aws, amazon web services, s3, aws lambda, lambda function*, bedrock, dynamodb, cloudwatch, ec2, sagemaker, redshift]}
+      - {label: Google Cloud, category: Cloud, keywords: [gcp, google cloud, bigquery, vertex ai, gcs, cloud run]}
+      # ALM, code and DevOps
+      - {label: Jira, category: ALM & DevOps, keywords: [jira]}
+      - {label: Azure DevOps, category: ALM & DevOps, keywords: [azure devops, ado, vsts, azure boards, azure repos]}
+      - {label: Confluence, category: ALM & DevOps, keywords: [confluence]}
+      - {label: GitHub, category: ALM & DevOps, keywords: [github]}
+      - {label: GitLab, category: ALM & DevOps, keywords: [gitlab]}
+      - {label: Bitbucket, category: ALM & DevOps, keywords: [bitbucket]}
+      - {label: Jenkins, category: ALM & DevOps, keywords: [jenkins]}
+      - {label: SonarQube, category: ALM & DevOps, keywords: [sonarqube, sonar, sonarcloud]}
+      - {label: Docker & Kubernetes, category: ALM & DevOps, keywords: [docker, kubernetes, k8s, openshift, helm]}
+      - {label: Terraform, category: ALM & DevOps, keywords: [terraform]}
+      # Enterprise applications
+      - {label: ServiceNow, category: Enterprise Apps, keywords: [servicenow, service now, snow ticket*]}
+      - {label: SAP, category: Enterprise Apps, keywords: [sap, s4hana, s 4hana, abap, sap hana]}
+      - {label: Salesforce, category: Enterprise Apps, keywords: [salesforce, sfdc, apex]}
+      - {label: Workday, category: Enterprise Apps, keywords: [workday]}
+      - {label: Oracle Apps, category: Enterprise Apps, keywords: [oracle ebs, oracle fusion, peoplesoft, jd edwards]}
+      - {label: Microsoft 365, category: Collaboration, keywords: [sharepoint, onedrive, ms outlook, outlook mail, outlook calendar, microsoft teams, ms teams, office 365, o365, microsoft 365, excel, power bi, powerbi]}
+      - {label: Slack, category: Collaboration, keywords: [slack]}
+      - {label: Email, category: Collaboration, keywords: [email*, e mail*, smtp, gmail]}
+      # Data platforms
+      - {label: Databricks, category: Data, keywords: [databricks, delta lake, unity catalog]}
+      - {label: Snowflake, category: Data, keywords: [snowflake]}
+      - {label: Spark, category: Data, keywords: [spark, pyspark]}
+      - {label: Kafka, category: Data, keywords: [kafka]}
+      - {label: PostgreSQL, category: Data, keywords: [postgres, postgresql]}
+      - {label: SQL Server, category: Data, keywords: [sql server, mssql, t sql, tsql, ssis]}
+      - {label: Oracle Database, category: Data, keywords: [oracle, pl sql, plsql]}
+      - {label: MongoDB, category: Data, keywords: [mongodb, mongo]}
+      - {label: Informatica, category: Data, keywords: [informatica]}
+      - {label: Tableau, category: Data, keywords: [tableau]}
+      # Languages
+      - {label: Java, category: Language, keywords: [java, spring boot, springboot, j2ee]}
+      - {label: Python, category: Language, keywords: [python, django, flask, fastapi]}
+      - {label: .NET / C#, category: Language, keywords: [.net, dotnet, c#, csharp, asp.net, vb.net]}
+      - {label: JavaScript / TypeScript, category: Language, keywords: [javascript, typescript, node js, nodejs, reactjs, react js, react native, angular, vue]}
+      - {label: COBOL / Mainframe, category: Language, keywords: [cobol, mainframe, jcl, cics, db2, as400]}
+      - {label: SQL, category: Language, keywords: [sql]}
+      # AI / agent stack
+      - {label: OpenAI / GPT, category: AI, keywords: [openai, gpt*, chatgpt]}
+      - {label: Anthropic Claude, category: AI, keywords: [anthropic, claude]}
+      - {label: Google Gemini, category: AI, keywords: [gemini]}
+      - {label: RAG / Vector Search, category: AI, keywords: [rag, retrieval augmented, vector db, vector store, vector search, embedding*, pinecone, chroma, pgvector, faiss, qdrant, weaviate, milvus]}
+      - {label: OCR / Document AI, category: AI, keywords: [ocr, document intelligence, form recognizer, textract, invoice extraction]}
+      - {label: MCP, category: AI, keywords: [mcp, model context protocol]}
+      # Testing tools (also feed SDLC_PHASE = Testing)
+      - {label: Selenium, category: Testing Tools, keywords: [selenium]}
+      - {label: Playwright, category: Testing Tools, keywords: [playwright]}
+      - {label: Postman, category: Testing Tools, keywords: [postman]}
+
+  INDUSTRY:
+    description: Industry vertical the artifact is specific to. Horizontal artifacts get no label.
+    labels:
+      - label: Healthcare
+        keywords: [healthcare, health care, patient*, clinical, clinician*, hospital*, hl7, fhir, ehr, emr,
+                   hipaa, diagnosis, diagnoses, epic ehr, icd 10, icd10, cpt code*, prior auth*, prior authorization, medicaid, medicare,
+                   payer*, provider network, care management, nurse*, physician*, medical]
+      - label: Life Sciences & Pharma
+        keywords: [pharma*, clinical trial*, pharmacovigilance, drug*, fda, gxp, life science*, biotech*,
+                   adverse event*, regulatory submission*]
+      - label: Insurance
+        keywords: [insurance, insurer*, policyholder*, underwrit*, fnol, first notice of loss, claims adjust*,
+                   insurance premium*, premium calculation, actuar*, reinsurance, guidewire, duck creek, loss ratio, policy admin*]
+      - label: Banking & Financial Services
+        keywords: [bank*, kyc, aml, anti money laundering, loan*, mortgage*, credit card*, payments, swift message*, swift mt,
+                   basel, trading, wealth management, fintech, lending, credit risk, fraud detection, capital markets,
+                   brokerage, fixed income, treasury]
+      - label: Retail & CPG
+        keywords: [retail*, sku*, e commerce, ecommerce, merchandis*, planogram*, point of sale, store operations,
+                   cpg, consumer goods, shopper*, loyalty program*, omnichannel]
+      - label: Manufacturing
+        keywords: [manufactur*, shop floor, plant maintenance, bill of materials, bom, mes, production line,
+                   predictive maintenance, quality inspection, industrial]
+      - label: Telecom & Media
+        keywords: [telecom*, telco, 5g, oss bss, network operator*, broadband, media,
+                   broadcasting, streaming service*]
+      - label: Energy & Utilities
+        keywords: [utility company, utility companies, utilities sector, energy, power grid, smart meter*, oil and gas,
+                   oil & gas, renewable*, outage management]
+      - label: Travel & Hospitality
+        keywords: [airline*, travel, hotel*, hospitality, booking*, reservation*, itinerar*, passenger*]
+      - label: Public Sector
+        keywords: [government, public sector, citizen service*, municipal*, federal, tax authority, public service*]
+      - label: Logistics & Supply Chain
+        keywords: [logistics, shipment*, freight, warehouse management, fleet, last mile, supply chain]
+
+  BUSINESS_FUNCTION:
+    description: Business function (domain) the artifact serves
+    labels:
+      - {label: Software Engineering & IT, keywords: [software, developer*, engineering, it operations, devops, application support, code]}
+      - {label: Customer Service, keywords: [customer service, customer support, contact center, call center, chatbot, faq, customer query, customer queries, complaint*]}
+      - {label: Human Resources, keywords: [hr, human resource*, recruit*, hiring, candidate*, resume screening, resume parsing, curriculum vitae, cv, employee onboarding, payroll, employee*, talent]}
+      - {label: Finance & Accounting, keywords: [finance, financial, accounting, invoice*, accounts payable, accounts receivable, reconciliation, ledger, audit*, tax, budget*, expense*]}
+      - {label: Sales & Marketing, keywords: [sales, marketing, lead, leads, lead generation, crm, campaign*, prospect*, proposal*, rfp, pitch, seo, content marketing]}
+      - {label: Legal & Compliance, keywords: [legal, contract*, compliance, regulatory, regulation*, gdpr, policy review, clause*, litigation, sox]}
+      - {label: Procurement, keywords: [procurement, purchase order*, vendor*, supplier*, sourcing, rfq]}
+      - {label: Data & Analytics, keywords: [analytics, dashboard*, reporting, report generation, insight*, kpi*, data quality, data pipeline*, etl, data engineering, data analysis]}
+      - {label: Security, keywords: [security, cyber*, threat*, vulnerabilit*, penetration test*, soc, siem, iam]}
+
+  AGENT_ARCHETYPE:
+    description: What kind of cognitive task the artifact performs
+    labels:
+      - {label: Summarizer, keywords: [summari*, summary, digest, condense, tl dr, tldr]}
+      - {label: Extractor, keywords: [extract*, parse*, parsing, scrape*, capture data, data extraction, entity extraction]}
+      - {label: Classifier / Router, keywords: [classif*, categori*, triage, route*, routing, tagging, intent detection, sentiment]}
+      - {label: Generator, keywords: [generat*, draft*, write*, compose*, authoring, create content, content creation]}
+      - {label: Reviewer / Validator, keywords: [review*, validat*, verif*, check*, audit*, assess*, evaluat*, critique*, compliance check*]}
+      - {label: Converter / Translator, keywords: [convert*, conversion, translat*, transform*, migrat*, transpil*]}
+      - {label: Q&A / Knowledge Assistant, keywords: [question answering, q&a, qna, answer question*, knowledge assistant, chat with, ask questions, assistant]}
+      - {label: Planner / Orchestrator, keywords: [plan, plans, planner*, planning, orchestrat*, coordinat*, manager agent, supervisor, decompos*, delegat*]}
+      - {label: Analyzer, keywords: [analy*, investigat*, diagnos*, root cause, insight*, forecast*, predict*]}
+      - {label: Recommender, keywords: [recommend*, suggest*, next best, advis*]}
