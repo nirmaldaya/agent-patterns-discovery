@@ -267,3 +267,66 @@ tables:
     comment: >
       Organisation hierarchy per realm (organization > domain > project > team) with the steward's industry mapping.
       One extra row per deployment with realm_id NULL holds the deployment-wide industry.
+
+  # --- knowledge graph (notebooks/05_build_graph.py, 06_graph_analytics.py) ---
+  graph_nodes:
+    comment: >
+      Knowledge-graph nodes. Artifacts (agents, workflows, tools, MCP servers and tools, knowledge bases, guardrails,
+      processes), models, org units (deployment, organization, business unit, project, team) and shared taxonomy
+      values (industry, SDLC phase, tech, business function, archetype).
+    primary_key: [node_id]
+    columns:
+      node_id: Stable id such as AGENT:dep_001:42, TEAM:dep_001:qe team, INDUSTRY:healthcare or TECH:jira
+      node_type: AGENT, WORKFLOW, TOOL, MCP_SERVER, MCP_TOOL, KNOWLEDGE_BASE, GUARDRAIL, PROCESS, MODEL, DEPLOYMENT, ORGANIZATION, BUSINESS_UNIT, PROJECT, TEAM, INDUSTRY, SDLC_PHASE, TECH, BUSINESS_FUNCTION or ARCHETYPE
+      node_group: ARTIFACT, MODEL, ORG or TAXONOMY. Useful for colouring a graph
+      label: Display name
+      artifact_id: Source id for artifact nodes
+      properties: JSON with extra attributes (org path, labels, tags, provider, tech category)
+      _deployment_id: Deployment for artifact and org nodes. NULL for shared taxonomy and model nodes
+
+  graph_edges:
+    comment: >
+      Knowledge-graph relationships between graph_nodes with a weight. Composition (CONTAINS, USES_TOOL,
+      USES_KNOWLEDGE_BASE, HAS_GUARDRAIL, USES_MODEL, EXPOSES, INCLUDES), runtime (CALLS), ownership (OWNED_BY,
+      PART_OF), labels (IN_INDUSTRY, SUPPORTS_PHASE, USES_TECH, SERVES_FUNCTION, HAS_ARCHETYPE), lineage
+      (CLONED_FROM) and derived co-occurrence (CO_OCCURS).
+    columns:
+      src: node_id of the source node
+      dst: node_id of the target node
+      edge_type: Relationship type
+      source: DESIGN, RUNTIME, LABEL_KEYWORD, LABEL_MANUAL or DERIVED
+      weight: 1 for design links, number of calls for CALLS, number of shared agents for CO_OCCURS
+      properties: JSON with extra attributes (step_order for CONTAINS, matched_keyword for labels, success and failure counts for CALLS)
+
+  graph_summary_edges:
+    comment: >
+      Pre-aggregated links between dimension values, e.g. Healthcare to Testing with the number of agents or workflows
+      that have both. Use for overview graphs and Sankey diagrams.
+    columns:
+      src_type: INDUSTRY, BUSINESS_UNIT, SDLC_PHASE, TECH, BUSINESS_FUNCTION or ARCHETYPE
+      dst_type: INDUSTRY, BUSINESS_UNIT, SDLC_PHASE, TECH, BUSINESS_FUNCTION or ARCHETYPE
+      artifact_count: Number of artifacts (of artifact_type) carrying both values
+
+  graph_node_metrics:
+    comment: >
+      Network metrics per node. pagerank shows how load-bearing an artifact or model is in how things are built,
+      community_id groups nodes into solution patterns (see graph_communities), is_isolated flags artifacts wired to nothing.
+    primary_key: [node_id]
+    columns:
+      degree: Number of distinct neighbours across all relationships
+      pagerank: Importance in the composition graph (higher = more things depend on it)
+      pagerank_rank_in_type: Rank of pagerank among nodes of the same type (1 = most central)
+      betweenness: How often the node bridges otherwise separate parts of the composition graph
+      community_id: Solution-pattern community (join graph_communities)
+      component_id: Connected island of artifacts in the composition graph
+      is_isolated: True for an artifact not connected to any other artifact
+
+  graph_communities:
+    comment: >
+      Solution patterns found by community detection over what artifacts are built from and labelled with. Each has a
+      readable name from its dominant SDLC phase, tech and archetype, its most central members and its deployments.
+    primary_key: [community_id]
+    columns:
+      community_name: Readable name built from the dominant SDLC phase, technologies and archetype
+      top_artifacts: Most central artifacts in the community
+      deployments: Customer deployments whose artifacts belong to the community. More than one means a cross-customer pattern

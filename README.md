@@ -9,6 +9,7 @@ and processes) explorable in Databricks, and lets anyone query it in plain langu
 | 2 | Ingest them from PostgreSQL into Databricks | [`notebooks/01_ingest_postgres.py`](notebooks/01_ingest_postgres.py) |
 | 3 | Build a Unity Catalog catalog with curated tables | [`sql/00_setup.sql`](sql/00_setup.sql), [`sql/10_explore_tables.sql`](sql/10_explore_tables.sql), [`notebooks/03_build_labels_and_catalog.py`](notebooks/03_build_labels_and_catalog.py), [`notebooks/04_apply_genie_metadata.py`](notebooks/04_apply_genie_metadata.py) |
 | 4 | Attach Genie and ask questions | [`genie/genie_space_setup.md`](genie/genie_space_setup.md), [`genie/sample_queries.sql`](genie/sample_queries.sql) |
+| 5 | Knowledge graph and graph analytics (for the graph UI) | [`docs/02_graph_model.md`](docs/02_graph_model.md), [`notebooks/05_build_graph.py`](notebooks/05_build_graph.py), [`notebooks/06_graph_analytics.py`](notebooks/06_graph_analytics.py) |
 
 ## What you get
 
@@ -28,6 +29,8 @@ apdi (catalog)
 | `workflow_agents`, `agent_tools`, `agent_knowledge_bases`, `agent_guardrails`, `process_nodes` | How artifacts are wired together |
 | `executions`, `llm_usage_daily`, `mcp_tool_usage_daily` | What actually runs: duration, status, tokens, cost, failures, PII and guardrail hits |
 | `search_queries`, `user_feedback`, `quality_scores`, `integrations`, `org_hierarchy` | Demand, sentiment, evaluation scores, connected systems and org structure |
+| `graph_nodes`, `graph_edges`, `graph_summary_edges` | Knowledge graph: artifacts, models, org units and taxonomy values as nodes, and composition, usage, ownership, label, lineage and co-occurrence relationships as weighted edges |
+| `graph_node_metrics`, `graph_communities` | PageRank, betweenness, islands and solution-pattern communities with readable names |
 
 ### Industry, SDLC phase and tech stack
 
@@ -99,7 +102,9 @@ a Unity Catalog cluster with DBR 15.4 LTS or later:
 | 2 | `notebooks/01_ingest_postgres.py` | `deployment_id`, `secret_scope` (tip: `dry_run = true` first to see the queries) |
 | 3 | `notebooks/run_sql_file.py` | `sql_file = ../sql/10_explore_tables.sql`, `drop_foreign_keys_in = explore` |
 | 4 | `notebooks/03_build_labels_and_catalog.py` | |
-| 5 | `notebooks/04_apply_genie_metadata.py` | |
+| 5 | `notebooks/05_build_graph.py` | |
+| 6 | `notebooks/06_graph_analytics.py` | `resolution` (community granularity) |
+| 7 | `notebooks/04_apply_genie_metadata.py` | |
 
 Check `apdi.ops.ingestion_log` after step 2. Every table should be `SUCCESS`.
 
@@ -126,6 +131,8 @@ Everything below was run end to end on local Spark 4.0 with Delta 4.0 against Po
   absent, secrets inside JSON and code are masked, and incremental loads pick up only new rows.
 * All 21 `explore` tables, the labels and the catalog build. Manual industry mapping precedence works.
 * All 17 queries in `genie/sample_queries.sql` run.
+* The knowledge graph builds with no dangling edges, the analytics find the expected solution patterns and the
+  isolated agent in the test data, and all query recipes in `docs/02_graph_model.md` run.
 
 Not testable outside Databricks, so check them on the first run:
 

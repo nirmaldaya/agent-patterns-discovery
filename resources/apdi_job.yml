@@ -56,9 +56,30 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
 
-        - task_key: genie_metadata
+        - task_key: build_graph
           depends_on:
             - task_key: labels_and_catalog
+          job_cluster_key: apdi
+          notebook_task:
+            notebook_path: ../notebooks/05_build_graph.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        - task_key: graph_analytics
+          depends_on:
+            - task_key: build_graph
+          job_cluster_key: apdi
+          libraries:
+            - pypi:
+                package: networkx>=3.2
+          notebook_task:
+            notebook_path: ../notebooks/06_graph_analytics.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        - task_key: genie_metadata
+          depends_on:
+            - task_key: graph_analytics
           job_cluster_key: apdi
           notebook_task:
             notebook_path: ../notebooks/04_apply_genie_metadata.py
