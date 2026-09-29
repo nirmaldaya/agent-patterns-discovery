@@ -31,6 +31,7 @@ dbutils.widgets.text("config_path", "../config/tables.yml", "Table config (relat
 dbutils.widgets.text("only_tables", "", "Only these sources (comma-separated schema.table, blank = all)")
 dbutils.widgets.text("parallelism", "4", "Tables loaded in parallel")
 dbutils.widgets.dropdown("dry_run", "false", ["true", "false"], "Dry run (print queries only)")
+dbutils.widgets.dropdown("rebuild_tables", "false", ["true", "false"], "Rebuild tables (replace schema, all deployments)")
 
 # COMMAND ----------
 
@@ -50,6 +51,7 @@ CONFIG_PATH = os.path.abspath(dbutils.widgets.get("config_path").strip())
 ONLY = {t.strip() for t in dbutils.widgets.get("only_tables").split(",") if t.strip()}
 PARALLELISM = max(1, int(dbutils.widgets.get("parallelism") or 1))
 DRY_RUN = dbutils.widgets.get("dry_run") == "true"
+REBUILD = dbutils.widgets.get("rebuild_tables") == "true"
 
 try:
     RUN_ID = dbutils.notebook.entry_point.getDbutils().notebook().getContext().jobRunId().get()
@@ -88,6 +90,9 @@ CAST_TO_TEXT = {
     "USER-DEFINED", "interval", "inet", "cidr", "macaddr", "money", "tsvector", "xml",
     "json", "jsonb", "uuid", "bit", "bit varying", "point", "tsrange", "tstzrange", "daterange",
 }
+# VARCHAR(n) and CHAR(n) are read as text too. Spark otherwise keeps the length limit in the Delta schema, and
+# unions of name columns in the later notebooks then fail with DELTA_EXCEED_CHAR_VARCHAR_LIMIT.
+LENGTH_LIMITED = {"character varying", "character"}
 # Arrays of these element types are read natively as Spark arrays, and any other array is cast to text.
 NATIVE_ARRAYS = {"_text", "_varchar", "_bpchar", "_int2", "_int4", "_int8", "_bool", "_float4", "_float8", "_numeric"}
 
@@ -129,12 +134,22 @@ def select_list(cols, spec):
         if dtype == "bytea" or name in exclude or (include and name not in include):
             continue
         quoted = '"' + name.replace('"', '""') + '"'
-        if dtype in CAST_TO_TEXT or (dtype == "ARRAY" and udt not in NATIVE_ARRAYS):
+        if dtype in CAST_TO_TEXT or dtype in LENGTH_LIMITED or (dtype == "ARRAY" and udt not in NATIVE_ARRAYS):
             exprs.append(f"{quoted}::text AS {quoted}")
         else:
             exprs.append(quoted)
         kept.append(c)
     return exprs, kept, missing
+
+
+def has_length_limited_strings(target):
+    """True if the table has CHAR/VARCHAR(n) columns, which older runs copied from PostgreSQL."""
+    return any("__CHAR_VARCHAR_TYPE_STRING" in (f.metadata or {}) for f in spark.table(target).schema.fields)
+
+
+def only_this_deployment(target):
+    ids = {r[0] for r in spark.table(target).select("_deployment_id").distinct().collect()}
+    return ids <= {DEPLOYMENT_ID}
 
 
 def current_watermark(target, wm, wm_type):
@@ -177,7 +192,10 @@ def ingest(spec):
 
         where = ""
         exists = spark.catalog.tableExists(target.replace("`", ""))
-        if mode == "incremental":
+        rebuild = exists and (REBUILD or (has_length_limited_strings(target) and only_this_deployment(target)))
+        if rebuild:
+            notes.append("table rebuilt: schema replaced and all rows reloaded")
+        if mode == "incremental" and not rebuild:
             wm = spec["watermark"]
             if exists:
                 wm_type = next(c["data_type"] for c in kept if c["column_name"] == wm)
@@ -202,7 +220,9 @@ def ingest(spec):
 
         version_before = DeltaTable.forName(spark, target).history(1).first()["version"] if exists else -1
         writer = df.write.format("delta").option("mergeSchema", "true")
-        if mode == "incremental":
+        if rebuild:
+            writer.mode("overwrite").option("overwriteSchema", "true").saveAsTable(target)
+        elif mode == "incremental":
             writer.mode("append").saveAsTable(target)
         elif exists:
             writer.mode("overwrite").option("replaceWhere", f"_deployment_id = '{DEPLOYMENT_ID}'").saveAsTable(target)

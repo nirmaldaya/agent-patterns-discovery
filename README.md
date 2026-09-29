@@ -100,7 +100,7 @@ a Unity Catalog cluster with DBR 15.4 LTS or later:
 | # | Notebook | Widgets (all have `catalog`, default `apdi`) |
 |---|---|---|
 | 0 | `notebooks/00_setup.py` | – |
-| 1 | `notebooks/01_ingest_postgres.py` | `deployment_id`, `secret_scope`, `dry_run` (run with `true` first to test the connection) |
+| 1 | `notebooks/01_ingest_postgres.py` | `deployment_id`, `secret_scope`, `dry_run` (run with `true` first to test the connection), `rebuild_tables` (replaces table schemas and reloads everything, normally not needed) |
 | 2 | `notebooks/02_build_explore.py` | – |
 | 3 | `notebooks/03_build_labels_and_catalog.py` | – |
 | 4 | `notebooks/04_build_graph.py` | – |
@@ -110,6 +110,10 @@ a Unity Catalog cluster with DBR 15.4 LTS or later:
 The file names are in run order. `notebooks/sql_runner.py` is a helper module used by 00 and 02, not a notebook to run.
 
 Check `apdi.ops.ingestion_log` after step 1. Every table should be `SUCCESS`.
+
+Text columns are stored as plain `STRING`. Tables loaded by an earlier version kept PostgreSQL `VARCHAR(n)`
+limits, which made step 3 fail with `DELTA_EXCEED_CHAR_VARCHAR_LIMIT`. Step 1 now rebuilds such tables
+automatically on its next run (the message column says `table rebuilt`).
 
 ### 5. Genie
 
