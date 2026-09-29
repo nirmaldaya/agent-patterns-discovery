@@ -11,6 +11,7 @@ and processes) explorable in Databricks, and lets anyone query it in plain langu
 | 4 | Attach Genie and ask questions | [`genie/genie_space_setup.md`](genie/genie_space_setup.md), [`genie/sample_queries.sql`](genie/sample_queries.sql) |
 | 5 | Knowledge graph and graph analytics (for the graph UI) | [`docs/02_graph_model.md`](docs/02_graph_model.md), [`notebooks/04_build_graph.py`](notebooks/04_build_graph.py), [`notebooks/05_graph_analytics.py`](notebooks/05_graph_analytics.py) |
 | 6 | Interactive graph explorer (FastAPI + React, deployed as a Databricks App) | [`apps/graph-explorer`](apps/graph-explorer/README.md) |
+| Next | Tuning after the first run on real data | [`docs/03_next_iteration.md`](docs/03_next_iteration.md) |
 
 ## What you get
 
