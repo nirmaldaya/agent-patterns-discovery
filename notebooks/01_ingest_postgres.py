@@ -222,6 +222,36 @@ def ingest(spec):
 
 
 specs = [t for t in CONFIG["tables"] if not ONLY or t["source"] in ONLY]
+
+# Pre-flight: fail fast with a clear reason instead of 72 identical errors.
+try:
+    read_query("SELECT 1 AS ok").collect()
+except Exception as exc:
+    raise RuntimeError(
+        "Cannot query PostgreSQL over JDBC. Check, in this order:\n"
+        "  1. Compute: run on a classic cluster with *Dedicated (single user)* access mode. Serverless and "
+        "Standard (shared) compute can block JDBC reads.\n"
+        "  2. Network: the cluster must reach the database host and port (try %sh nc -vz <host> <port>).\n"
+        f"  3. Secrets: scope '{SCOPE}' must hold pg_host, pg_port, pg_database, pg_user, pg_password.\n"
+        f"Original error: {str(exc).splitlines()[0][:500]}"
+    ) from exc
+
+visible = {
+    r.table_schema: r.n
+    for r in read_query(
+        "SELECT table_schema, count(*) AS n FROM information_schema.tables "
+        "WHERE table_schema IN ('core', 'mcp', 'process_studio', 'rbac', 'trulens') GROUP BY table_schema"
+    ).collect()
+}
+needed = sorted({t["source"].split(".")[0] for t in specs})
+unseen = [schema for schema in needed if not visible.get(schema)]
+if unseen:
+    raise RuntimeError(
+        f"The database user cannot see any tables in schema(s) {unseen}. Grant it access, e.g. "
+        f"GRANT USAGE ON SCHEMA {', '.join(unseen)} TO <user>; "
+        f"GRANT SELECT ON ALL TABLES IN SCHEMA {', '.join(unseen)} TO <user>;"
+    )
+print("PostgreSQL reachable. Tables visible per schema:", visible)
 with ThreadPoolExecutor(max_workers=PARALLELISM) as pool:
     results = list(pool.map(ingest, specs))
 
@@ -237,5 +267,9 @@ if not DRY_RUN:
 display(log_df.orderBy("status", "source_table"))
 
 failed = [r["source_table"] for r in results if r["status"] == "FAILED"]
-if failed:
-    raise RuntimeError(f"{len(failed)} table(s) failed: {failed}")
+missing = [r["source_table"] for r in results if r["status"] == "SKIPPED" and r["message"] == "table not found in source"]
+if failed or missing:
+    raise RuntimeError(
+        f"{len(failed)} table(s) failed: {failed}. {len(missing)} table(s) not found or not readable in the source: "
+        f"{missing}. Later steps need these tables. See {CATALOG}.ops.ingestion_log for the error of each table."
+    )

@@ -56,5 +56,15 @@ print(f"{SQL_FILE}: {len(statements)} statements")
 for i, stmt in enumerate(statements, 1):
     head = re.sub(r"\s+", " ", stmt)[:100]
     started = time.time()
-    spark.sql(stmt)
+    try:
+        spark.sql(stmt)
+    except Exception as exc:
+        msg = str(exc)
+        if "TABLE_OR_VIEW_NOT_FOUND" in msg and "raw_" in msg:
+            raise RuntimeError(
+                f"Statement {i} needs a raw table that does not exist yet. Run notebooks/01_ingest_postgres "
+                f"(with dry_run = false) first, then check {CATALOG}.ops.ingestion_log: every table should be SUCCESS. "
+                f"Original error: {msg.splitlines()[0]}"
+            ) from exc
+        raise
     print(f"[{i}/{len(statements)}] {time.time() - started:6.1f}s  {head}")
