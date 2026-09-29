@@ -6,8 +6,8 @@ visually (who builds what, with which tools, for which industry and SDLC phase) 
 
 | Step | Notebook | Output (`<catalog>.explore`) |
 |---|---|---|
-| Build | [`notebooks/05_build_graph.py`](../notebooks/05_build_graph.py) | `graph_nodes`, `graph_edges`, `graph_summary_edges` |
-| Analyse | [`notebooks/06_graph_analytics.py`](../notebooks/06_graph_analytics.py) | `graph_node_metrics`, `graph_communities` |
+| Build | [`notebooks/04_build_graph.py`](../notebooks/04_build_graph.py) | `graph_nodes`, `graph_edges`, `graph_summary_edges` |
+| Analyse | [`notebooks/05_graph_analytics.py`](../notebooks/05_graph_analytics.py) | `graph_node_metrics`, `graph_communities` |
 
 Both run in the `apdi-refresh` job after the labels step. The tables are plain Delta tables. Any front end
 (the planned FastAPI + React app, a notebook, Genie) reads them through a SQL warehouse.

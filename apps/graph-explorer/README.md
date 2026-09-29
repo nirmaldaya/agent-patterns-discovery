@@ -5,7 +5,7 @@ bases, guardrails, processes, models, org units and their labels (industry, SDLC
 archetype), and every relationship between them.
 
 **FastAPI** backend + **React** (Vite, TypeScript, Cytoscape.js) frontend, deployed as one Databricks App. It reads
-the `graph_*` tables built by `notebooks/05_build_graph.py` and `06_graph_analytics.py` (see
+the `graph_*` tables built by `notebooks/04_build_graph.py` and `05_graph_analytics.py` (see
 [`docs/02_graph_model.md`](../../docs/02_graph_model.md)).
 
 ## What you can do
@@ -64,7 +64,7 @@ To develop against your own data, export the five `graph_*` tables from Databric
 
 ## Deploy to Databricks
 
-1. **Build the graph tables.** Run the `apdi-refresh` job (or notebooks 05 and 06) so `<catalog>.explore.graph_*` exist.
+1. **Build the graph tables.** Run the `apdi-refresh` job (or notebooks 04 and 05) so `<catalog>.explore.graph_*` exist.
 2. **Create the app.** In the workspace, **Compute → Apps → Create app → Custom**, name it `apdi-graph-explorer`.
 3. **Add the SQL warehouse resource.** In the app's configuration, add an **App resource → SQL warehouse** with
    permission **Can use** and resource key **`sql-warehouse`**. `app.yaml` reads its id from that key.

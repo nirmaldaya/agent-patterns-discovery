@@ -7,9 +7,9 @@ and processes) explorable in Databricks, and lets anyone query it in plain langu
 |---|---|---|
 | 1 | Identify the tables needed for data exploration | [`docs/01_table_inventory.md`](docs/01_table_inventory.md), [`config/tables.yml`](config/tables.yml) |
 | 2 | Ingest them from PostgreSQL into Databricks | [`notebooks/01_ingest_postgres.py`](notebooks/01_ingest_postgres.py) |
-| 3 | Build a Unity Catalog catalog with curated tables | [`sql/00_setup.sql`](sql/00_setup.sql), [`sql/10_explore_tables.sql`](sql/10_explore_tables.sql), [`notebooks/03_build_labels_and_catalog.py`](notebooks/03_build_labels_and_catalog.py), [`notebooks/04_apply_genie_metadata.py`](notebooks/04_apply_genie_metadata.py) |
+| 3 | Build a Unity Catalog catalog with curated tables | [`notebooks/00_setup.py`](notebooks/00_setup.py), [`notebooks/02_build_explore.py`](notebooks/02_build_explore.py) (running [`sql/00_setup.sql`](sql/00_setup.sql) and [`sql/10_explore_tables.sql`](sql/10_explore_tables.sql)), [`notebooks/03_build_labels_and_catalog.py`](notebooks/03_build_labels_and_catalog.py), [`notebooks/06_apply_genie_metadata.py`](notebooks/06_apply_genie_metadata.py) |
 | 4 | Attach Genie and ask questions | [`genie/genie_space_setup.md`](genie/genie_space_setup.md), [`genie/sample_queries.sql`](genie/sample_queries.sql) |
-| 5 | Knowledge graph and graph analytics (for the graph UI) | [`docs/02_graph_model.md`](docs/02_graph_model.md), [`notebooks/05_build_graph.py`](notebooks/05_build_graph.py), [`notebooks/06_graph_analytics.py`](notebooks/06_graph_analytics.py) |
+| 5 | Knowledge graph and graph analytics (for the graph UI) | [`docs/02_graph_model.md`](docs/02_graph_model.md), [`notebooks/04_build_graph.py`](notebooks/04_build_graph.py), [`notebooks/05_graph_analytics.py`](notebooks/05_graph_analytics.py) |
 | 6 | Interactive graph explorer (FastAPI + React, deployed as a Databricks App) | [`apps/graph-explorer`](apps/graph-explorer/README.md) |
 
 ## What you get
@@ -97,17 +97,19 @@ databricks bundle run apdi_refresh -t dev
 **Option B: Git folder.** Clone this repo into the workspace as a Git folder and run the notebooks in order on
 a Unity Catalog cluster with DBR 15.4 LTS or later:
 
-| # | Notebook | Widgets |
+| # | Notebook | Widgets (all have `catalog`, default `apdi`) |
 |---|---|---|
-| 1 | `notebooks/run_sql_file.py` | `sql_file = ../sql/00_setup.sql` |
-| 2 | `notebooks/01_ingest_postgres.py` | `deployment_id`, `secret_scope` (tip: `dry_run = true` first to see the queries) |
-| 3 | `notebooks/run_sql_file.py` | `sql_file = ../sql/10_explore_tables.sql`, `drop_foreign_keys_in = explore` |
-| 4 | `notebooks/03_build_labels_and_catalog.py` | |
-| 5 | `notebooks/05_build_graph.py` | |
-| 6 | `notebooks/06_graph_analytics.py` | `resolution` (community granularity) |
-| 7 | `notebooks/04_apply_genie_metadata.py` | |
+| 0 | `notebooks/00_setup.py` | – |
+| 1 | `notebooks/01_ingest_postgres.py` | `deployment_id`, `secret_scope`, `dry_run` (run with `true` first to test the connection) |
+| 2 | `notebooks/02_build_explore.py` | – |
+| 3 | `notebooks/03_build_labels_and_catalog.py` | – |
+| 4 | `notebooks/04_build_graph.py` | – |
+| 5 | `notebooks/05_graph_analytics.py` | `resolution` (community granularity) |
+| 6 | `notebooks/06_apply_genie_metadata.py` | – |
 
-Check `apdi.ops.ingestion_log` after step 2. Every table should be `SUCCESS`.
+The file names are in run order. `notebooks/sql_runner.py` is a helper module used by 00 and 02, not a notebook to run.
+
+Check `apdi.ops.ingestion_log` after step 1. Every table should be `SUCCESS`.
 
 ### 5. Genie
 

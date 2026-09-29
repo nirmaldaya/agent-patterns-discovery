@@ -1,6 +1,6 @@
 -- APDI quick solution - curated exploration tables (explore schema)
 --
--- Rebuilt from the raw_* schemas on every run by notebooks/run_sql_file.py
+-- Rebuilt from the raw_* schemas on every run by notebooks/02_build_explore.py
 -- (USE CATALOG <catalog> is issued first, so names here are schema-qualified only).
 -- Every table carries _deployment_id and every join matches on it, so data from
 -- further customer deployments can be loaded into the same tables later.

@@ -19,7 +19,7 @@ const DIMENSIONS: [string, string][] = [
   ["ARCHETYPE", "Archetype"],
 ];
 
-// Pairs available in graph_summary_edges (see notebooks/05_build_graph.py).
+// Pairs available in graph_summary_edges (see notebooks/04_build_graph.py).
 const PAIRS = new Set([
   "INDUSTRY>SDLC_PHASE", "INDUSTRY>TECH", "INDUSTRY>ARCHETYPE", "INDUSTRY>BUSINESS_FUNCTION",
   "BUSINESS_UNIT>SDLC_PHASE", "BUSINESS_UNIT>TECH", "BUSINESS_UNIT>ARCHETYPE", "SDLC_PHASE>TECH",
@@ -102,7 +102,7 @@ export function ExploreTab({ mode, meta, communities, insights, onOverview, onCo
       <section className="card">
         <h3>Solution patterns</h3>
         <p className="hint">Communities found by graph analytics: artifacts, tools and labels that belong together.</p>
-        {!meta?.has_communities && <p className="muted">Run notebooks/06_graph_analytics.py to find patterns.</p>}
+        {!meta?.has_communities && <p className="muted">Run notebooks/05_graph_analytics.py to find patterns.</p>}
         <ul className="pattern-list">
           {communities.map((c) => (
             <li key={c.community_id}>

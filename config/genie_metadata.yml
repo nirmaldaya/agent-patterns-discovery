@@ -1,5 +1,5 @@
 # Unity Catalog comments and informational keys for the explore schema.
-# Applied by notebooks/04_apply_genie_metadata.py after every rebuild.
+# Applied by notebooks/06_apply_genie_metadata.py after every rebuild.
 # Genie reads these descriptions, so write them for a business user, not an engineer.
 
 schema: explore
@@ -268,7 +268,7 @@ tables:
       Organisation hierarchy per realm (organization > domain > project > team) with the steward's industry mapping.
       One extra row per deployment with realm_id NULL holds the deployment-wide industry.
 
-  # --- knowledge graph (notebooks/05_build_graph.py, 06_graph_analytics.py) ---
+  # --- knowledge graph (notebooks/04_build_graph.py, 05_graph_analytics.py) ---
   graph_nodes:
     comment: >
       Knowledge-graph nodes. Artifacts (agents, workflows, tools, MCP servers and tools, knowledge bases, guardrails,

@@ -19,11 +19,9 @@ resources:
         - task_key: setup
           job_cluster_key: apdi
           notebook_task:
-            notebook_path: ../notebooks/run_sql_file.py
+            notebook_path: ../notebooks/00_setup.py
             base_parameters:
               catalog: ${var.catalog}
-              sql_file: ../sql/00_setup.sql
-              create_catalog: "false"
 
         - task_key: ingest
           depends_on:
@@ -41,11 +39,9 @@ resources:
             - task_key: ingest
           job_cluster_key: apdi
           notebook_task:
-            notebook_path: ../notebooks/run_sql_file.py
+            notebook_path: ../notebooks/02_build_explore.py
             base_parameters:
               catalog: ${var.catalog}
-              sql_file: ../sql/10_explore_tables.sql
-              drop_foreign_keys_in: explore
 
         - task_key: labels_and_catalog
           depends_on:
@@ -61,7 +57,7 @@ resources:
             - task_key: labels_and_catalog
           job_cluster_key: apdi
           notebook_task:
-            notebook_path: ../notebooks/05_build_graph.py
+            notebook_path: ../notebooks/04_build_graph.py
             base_parameters:
               catalog: ${var.catalog}
 
@@ -73,7 +69,7 @@ resources:
             - pypi:
                 package: networkx>=3.2
           notebook_task:
-            notebook_path: ../notebooks/06_graph_analytics.py
+            notebook_path: ../notebooks/05_graph_analytics.py
             base_parameters:
               catalog: ${var.catalog}
 
@@ -82,6 +78,6 @@ resources:
             - task_key: graph_analytics
           job_cluster_key: apdi
           notebook_task:
-            notebook_path: ../notebooks/04_apply_genie_metadata.py
+            notebook_path: ../notebooks/06_apply_genie_metadata.py
             base_parameters:
               catalog: ${var.catalog}

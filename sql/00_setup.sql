@@ -1,8 +1,7 @@
 -- APDI quick solution - Unity Catalog layout (run once, re-runnable)
 --
--- Executed by notebooks/run_sql_file.py, which first runs CREATE CATALOG IF NOT EXISTS
--- and USE CATALOG <catalog>. You can also paste this into the SQL editor after
--- selecting the catalog yourself.
+-- Executed by notebooks/00_setup.py, which first runs USE CATALOG <catalog>.
+-- You can also paste this into the SQL editor after selecting the catalog yourself.
 --
 --   <catalog>
 --   ├── raw_core, raw_mcp, raw_process_studio, raw_rbac, raw_trulens   1:1 copies of PostgreSQL tables

@@ -107,7 +107,7 @@ especially for the array and `explode` patterns.
 
 ## 5. Joins
 
-`notebooks/04_apply_genie_metadata.py` declares primary and foreign keys in Unity Catalog, and Genie uses
+`notebooks/06_apply_genie_metadata.py` declares primary and foreign keys in Unity Catalog, and Genie uses
 them to join tables. If the notebook warns that a key could not be applied, add the join in
 **Configure > Joins** instead. The main ones:
 
